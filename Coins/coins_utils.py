@@ -13,21 +13,25 @@ from keras.optimizers import RMSprop
 import glob
 
 #Reading input data
-def read_image(file_path, ROWS = 100, COLS = 100):
-    img = cv2.imread(file_path) 
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) #Needed to obtain right ordering in colors between opencv and matplotlib
+def read_image(file_path, colorSpace, ROWS = 100, COLS = 100):
+    img = cv2.imread(file_path)
+    if colorSpace == "RGB":
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) #Needed to obtain right ordering in colors between opencv and matplotlib
+    else:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2YUV) #Conversion to YUV format
+    #
     #Do we want to resize?
     #return cv2.resize(img, (ROWS, COLS), interpolation=cv2.INTER_CUBIC)
     return img
 
 #Prepare the images for further processing
-def prep_data(images, ROWS = 100, COLS = 100, CHANNELS = 3):
+def prep_data(images, ROWS = 100, COLS = 100, CHANNELS = 3, colorSpace = "RGB"):
     count = len(images)
     data = np.ndarray((count, ROWS, COLS, CHANNELS), dtype=np.uint8)
 
     for i, image_file in enumerate(images):
         if "jpg" in image_file:
-            image = read_image(image_file)
+            image = read_image(image_file,colorSpace)
             #print image.shape
             data[i] = image
             if i%1000 == 0: print('Processed {} of {}'.format(i, count))
