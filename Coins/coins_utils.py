@@ -10,6 +10,7 @@ import random
 import os
 from keras.models import Model, model_from_json
 from keras.optimizers import RMSprop
+from pylab import demean
 import glob
 
 #Reading input data
@@ -38,6 +39,47 @@ def prep_data(images, ROWS = 100, COLS = 100, CHANNELS = 3, colorSpace = "RGB"):
         else:
             print(image_file + " Not processed")
     
+    return data
+
+def prep_data_nomean(images, ROWS = 100, COLS = 100, CHANNELS = 3, colorSpace = "RGB"):
+    count = len(images)
+    data = np.ndarray((count, ROWS, COLS, CHANNELS), dtype=np.float32)
+
+    for i, image_file in enumerate(images):
+        if "jpg" in image_file:
+            image = read_image(image_file,colorSpace)
+            data[i] = image
+            if i%1000 == 0: print('Processed {} of {}'.format(i, count))
+        else:
+            print(image_file + " Not processed")
+    dataMean = data.mean(axis=0)
+    dataMax = np.amax(data,axis=0)
+    dataMin = np.amin(data,axis=0)
+    for i in range(0,len(images)):
+        #data[i] = data[i] - dataMean
+        data[i] = np.divide((data[i] - dataMin),(dataMax - dataMin))
+    #print(dataMean.shape)
+    #dataNoMean = data - dataMean[None, :]
+    #return dataNoMean
+    return data,dataMax,dataMin
+
+def prep_data_nomean_test(images,dataMax,dataMin, ROWS = 100, COLS = 100, CHANNELS = 3, colorSpace = "RGB"):
+    count = len(images)
+    data = np.ndarray((count, ROWS, COLS, CHANNELS), dtype=np.float32)
+
+    for i, image_file in enumerate(images):
+        if "jpg" in image_file:
+            image = read_image(image_file,colorSpace)
+            data[i] = image
+            if i%1000 == 0: print('Processed {} of {}'.format(i, count))
+        else:
+            print(image_file + " Not processed")
+    for i in range(0,len(images)):
+        #data[i] = data[i] - dataMean
+        data[i] = np.divide((data[i] - dataMin),(dataMax - dataMin))
+    #print(dataMean.shape)
+    #dataNoMean = data - dataMean[None, :]
+    #return dataNoMean
     return data
 
 #Print some coins (to be extended...) for peace of mind while labeling
