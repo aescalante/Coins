@@ -41,6 +41,7 @@ def prep_data(images, ROWS = 100, COLS = 100, CHANNELS = 3, colorSpace = "RGB"):
     
     return data
 
+#Prepare the images for further processing (Normalized)
 def prep_data_nomean(images, ROWS = 100, COLS = 100, CHANNELS = 3, colorSpace = "RGB"):
     count = len(images)
     data = np.ndarray((count, ROWS, COLS, CHANNELS), dtype=np.float32)
@@ -58,11 +59,16 @@ def prep_data_nomean(images, ROWS = 100, COLS = 100, CHANNELS = 3, colorSpace = 
     for i in range(0,len(images)):
         #data[i] = data[i] - dataMean
         data[i] = np.divide((data[i] - dataMin),(dataMax - dataMin))
+        #if dataMin != dataMax: #Protection
+        #    data[i] = np.divide((data[i] - dataMin),(dataMax - dataMin))
+        #else:
+        #    data[i] = data[i]-data[i]
     #print(dataMean.shape)
     #dataNoMean = data - dataMean[None, :]
     #return dataNoMean
     return data,dataMax,dataMin
 
+#Prepare the images for further processing (Normalized, for validation and test sets)
 def prep_data_nomean_test(images,dataMax,dataMin, ROWS = 100, COLS = 100, CHANNELS = 3, colorSpace = "RGB"):
     count = len(images)
     data = np.ndarray((count, ROWS, COLS, CHANNELS), dtype=np.float32)
@@ -77,6 +83,10 @@ def prep_data_nomean_test(images,dataMax,dataMin, ROWS = 100, COLS = 100, CHANNE
     for i in range(0,len(images)):
         #data[i] = data[i] - dataMean
         data[i] = np.divide((data[i] - dataMin),(dataMax - dataMin))
+        #if dataMin != dataMax: #Protection
+        #    data[i] = np.divide((data[i] - dataMin),(dataMax - dataMin))
+        #else:
+        #    data[i] = data[i]-data[i]
     #print(dataMean.shape)
     #dataNoMean = data - dataMean[None, :]
     #return dataNoMean
@@ -279,3 +289,48 @@ def saveCircles(outputfolder, source, cimg):
     img = Image.fromarray(cimg, 'RGB')
     img.save(output_filename+".jpg")
     return 0
+
+#Substract background, putting a mask over it
+def bgSubstraction(img, BLUR = 21, CANNY_THRESH_1 = 80, 
+                   CANNY_THRESH_2 = 200, MASK_DILATE_ITER = 4, 
+                   MASK_ERODE_ITER = 4, MASK_COLOR = (0.0,0.0,1.0)): 
+    
+    gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+
+    #Edge detection
+    edges = cv2.Canny(gray, CANNY_THRESH_1, CANNY_THRESH_2)
+    edges = cv2.dilate(edges, None)
+    edges = cv2.erode(edges, None)
+
+    #Find contours in edges, sort by area
+    contour_info = []
+    _, contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+    for c in contours:
+        contour_info.append((
+            c,
+            cv2.isContourConvex(c),
+            cv2.contourArea(c),
+        ))
+    contour_info = sorted(contour_info, key=lambda c: c[2], reverse=True)
+    max_contour = contour_info[0]
+
+    #Create empty mask, draw filled polygon on it corresponding to largest contour
+    #Mask is black, polygon is white
+    mask = np.zeros(edges.shape)
+    cv2.fillConvexPoly(mask, max_contour[0], (255))
+
+    #Smooth mask, then blur it
+    mask = cv2.dilate(mask, None, iterations=MASK_DILATE_ITER)
+    mask = cv2.erode(mask, None, iterations=MASK_ERODE_ITER)
+    mask = cv2.GaussianBlur(mask, (BLUR, BLUR), 0)
+    mask_stack = np.dstack([mask]*3)    # Create 3-channel alpha mask
+    mask_nz_count = np.count_nonzero(mask_stack)
+
+    #Blend masked img into MASK_COLOR background
+    mask_stack      = mask_stack.astype('float32') / 255.0          # Use float matrices, 
+    imgnorm         = img.astype('float32') / 255.0                 #  for easy blending
+
+    masked = (mask_stack * imgnorm) + ((1-mask_stack) * MASK_COLOR) # Blend
+    masked = (masked * 255).astype('uint8')                         # Convert back to 8-bit
+    
+    return masked, mask_nz_count
